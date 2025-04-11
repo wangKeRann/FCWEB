@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class VideoSimulator:
-    def __init__(self, video_path: str, device_type: str, video_type: str, server_url: str = "ws://localhost:8000/ws/video"):
+    def __init__(self, video_path: str, device_type: str, video_type: str, server_url: str = "ws://172.22.132.3:8000/ws/video"):
         """
         Initialize the video simulator.
         

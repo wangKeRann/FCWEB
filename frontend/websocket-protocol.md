@@ -2,7 +2,7 @@
 
 ## 连接信息
 
-- WebSocket 服务器地址: `ws://localhost:8000/ws/client`
+- WebSocket 服务器地址: `ws://172.22.132.3:8000/ws/client`
 - 连接建立后自动发送视频流请求
 - 支持自动重连机制（断开后5秒自动重连）
 

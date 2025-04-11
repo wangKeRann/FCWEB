@@ -528,24 +528,72 @@ class VideoHandler:
                                             
                                             # 处理双模态帧
                                             result = self.multimodal_processor.process_frames(latest_frame, ir_frame)
-                                            if 'error' not in result:
-                                                logger.info(f"多模态处理成功，检测到 {len(result['fused_detections'])} 个目标")
-                                                for det in result['fused_detections']:
-                                                    logger.info(f"检测到目标: 置信度={det['confidence']:.2f}")
+                                            if result.get('code') == 1:  # 处理成功
                                                 # 解码RGB帧
                                                 rgb_img_data = base64.b64decode(result['rgb_draw_frame'])
                                                 rgb_nparr = np.frombuffer(rgb_img_data, np.uint8)
                                                 processed_frame = cv2.imdecode(rgb_nparr, cv2.IMREAD_COLOR)
-                                            else:
-                                                logger.error(f"多模态处理失败: {result['error']}")
+                                                
+                                                # 编码处理后的帧
+                                                _, buffer = cv2.imencode('.jpg', processed_frame)
+                                                processed_data = buffer.tobytes()
+                                                
+                                                # 创建元数据
+                                                metadata = {
+                                                    "frame_size": len(processed_data),
+                                                    "detections": result['detections'],
+                                                    "timestamp": time.time()
+                                                }
+                                                metadata_str = json.dumps(metadata)
+                                                
+                                                # 发送处理后的帧
+                                                await websocket.send_text(metadata_str)
+                                                await websocket.send_bytes(processed_data)
+                                            else:  # 处理失败或跳过，发送原始帧
                                                 processed_frame = latest_frame
+                                                # 编码原始帧
+                                                _, buffer = cv2.imencode('.jpg', processed_frame)
+                                                frame_data = buffer.tobytes()
+                                                
+                                                # 创建原始帧的元数据
+                                                metadata = {
+                                                    "frame_size": len(frame_data),
+                                                    "timestamp": time.time()
+                                                }
+                                                metadata_str = json.dumps(metadata)
+                                                await websocket.send_text(metadata_str)
+                                                await websocket.send_bytes(frame_data)
                                         else:
                                             logger.warning(f"未找到红外帧，视频类型: {ir_video_type}")
                                             processed_frame = latest_frame
+                                            # 编码原始帧
+                                            _, buffer = cv2.imencode('.jpg', processed_frame)
+                                            frame_data = buffer.tobytes()
+                                            
+                                            # 创建原始帧的元数据
+                                            metadata = {
+                                                "frame_size": len(frame_data),
+                                                "timestamp": time.time()
+                                            }
+                                            metadata_str = json.dumps(metadata)
+                                            await websocket.send_text(metadata_str)
+                                            await websocket.send_bytes(frame_data)
                                     except Exception as e:
                                         logger.error(f"多模态检测处理异常: {str(e)}")
                                         logger.error(traceback.format_exc())
                                         processed_frame = latest_frame
+                                        # 编码原始帧
+                                        _, buffer = cv2.imencode('.jpg', processed_frame)
+                                        frame_data = buffer.tobytes()
+                                        
+                                        # 创建原始帧的元数据
+                                        metadata = {
+                                            "frame_size": len(frame_data),
+                                            "timestamp": time.time()
+                                        }
+                                        metadata_str = json.dumps(metadata)
+                                        await websocket.send_text(metadata_str)
+                                        await websocket.send_bytes(frame_data)
                                 else:
                                     processed_frame = latest_frame
                                 
@@ -669,35 +717,57 @@ class VideoHandler:
                             await client.send_bytes(frame_data)
                     elif process_type == "multimodal_detection":
                         try:
-                            logger.info("开始多模态检测处理")
                             # 获取对应的红外帧
-                            ir_video_type = mapped_video_type.replace("visible", "thermal")
-                            logger.info(f"尝试获取红外帧，视频类型: {ir_video_type}")
+                            ir_video_type = video_type_dir.replace("visible", "thermal")
                             
                             if ir_video_type in self.frame_buffer and self.frame_buffer[ir_video_type]:
                                 ir_frame = self.frame_buffer[ir_video_type][-1][1]
-                                logger.info("成功获取红外帧")
                                 
                                 # 处理双模态帧
-                                result = self.multimodal_processor.process_frames(latest_frame, ir_frame)
-                                if 'error' not in result:
-                                    logger.info(f"多模态处理成功，检测到 {len(result['fused_detections'])} 个目标")
-                                    for det in result['fused_detections']:
-                                        logger.info(f"检测到目标: 置信度={det['confidence']:.2f}")
+                                result = self.multimodal_processor.process_frames(frame, ir_frame)
+                                if result.get('code') == 1:  # 处理成功
                                     # 解码RGB帧
                                     rgb_img_data = base64.b64decode(result['rgb_draw_frame'])
                                     rgb_nparr = np.frombuffer(rgb_img_data, np.uint8)
                                     processed_frame = cv2.imdecode(rgb_nparr, cv2.IMREAD_COLOR)
-                                else:
-                                    logger.error(f"多模态处理失败: {result['error']}")
-                                    processed_frame = latest_frame
+                                    
+                                    # 编码处理后的帧
+                                    _, buffer = cv2.imencode('.jpg', processed_frame)
+                                    processed_data = buffer.tobytes()
+                                    
+                                    # 更新元数据
+                                    metadata = json.loads(metadata_str)
+                                    metadata["frame_size"] = len(processed_data)
+                                    metadata["detections"] = result['detections']
+                                    updated_metadata = json.dumps(metadata)
+                                    
+                                    # 发送处理后的帧
+                                    await client.send_text(updated_metadata)
+                                    await client.send_bytes(processed_data)
+                                else:  # 处理失败或跳过，发送原始帧
+                                    processed_frame = frame
+                                    # 编码原始帧
+                                    _, buffer = cv2.imencode('.jpg', processed_frame)
+                                    frame_data = buffer.tobytes()
+                                    
+                                    # 创建原始帧的元数据
+                                    metadata = {
+                                        "frame_size": len(frame_data),
+                                        "timestamp": time.time()
+                                    }
+                                    metadata_str = json.dumps(metadata)
+                                    await client.send_text(metadata_str)
+                                    await client.send_bytes(frame_data)
                             else:
-                                logger.warning(f"未找到红外帧，视频类型: {ir_video_type}")
-                                processed_frame = latest_frame
+                                # 如果没有红外帧，发送原始帧
+                                await client.send_text(metadata_str)
+                                await client.send_bytes(frame_data)
                         except Exception as e:
                             logger.error(f"多模态检测处理异常: {str(e)}")
                             logger.error(traceback.format_exc())
-                            processed_frame = latest_frame
+                            # 如果处理失败，发送原始帧
+                            await client.send_text(metadata_str)
+                            await client.send_bytes(frame_data)
                     else:
                         # 未知的处理类型，发送原始帧
                         await client.send_text(metadata_str)

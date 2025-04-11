@@ -23,7 +23,7 @@ class PoseProcessor:
         if is_server:
             try:
                 from ultralytics import YOLO
-                self.model = YOLO('../zishi.pt')
+                self.model = YOLO('/home/anonym4/wkr/FCWEB2/backend/zishi.pt')
                 logger.info("YOLOv8模型加载成功")
             except ImportError:
                 logger.warning("服务器环境未安装 ultralytics 包")

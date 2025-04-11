@@ -187,12 +187,12 @@ class VideoStreamHandler {
 
         // Connect to visible light video server
         console.log('[DEBUG] Creating new WebSocket connection for visible light video');
-        this.wsVisible = new WebSocket('ws://localhost:8000/ws/client');
+        this.wsVisible = new WebSocket('ws://172.22.132.3:8000/ws/client');
         this.setupWebSocketHandlers(this.wsVisible, 'visible');
 
         // Connect to infrared video server
         console.log('[DEBUG] Creating new WebSocket connection for infrared video');
-        this.wsInfrared = new WebSocket('ws://localhost:8000/ws/client');
+        this.wsInfrared = new WebSocket('ws://172.22.132.3:8000/ws/client');
         this.setupWebSocketHandlers(this.wsInfrared, 'infrared');
     }
 
@@ -247,10 +247,10 @@ class VideoStreamHandler {
             setTimeout(() => {
                 console.log(`[DEBUG] Attempting to reconnect ${type}...`);
                 if (type === 'visible') {
-                    this.wsVisible = new WebSocket('ws://localhost:8000/ws/client');
+                    this.wsVisible = new WebSocket('ws://172.22.132.3:8000/ws/client');
                     this.setupWebSocketHandlers(this.wsVisible, 'visible');
                 } else {
-                    this.wsInfrared = new WebSocket('ws://localhost:8000/ws/client');
+                    this.wsInfrared = new WebSocket('ws://172.22.132.3:8000/ws/client');
                     this.setupWebSocketHandlers(this.wsInfrared, 'infrared');
                 }
             }, 5000);
@@ -262,10 +262,10 @@ class VideoStreamHandler {
             setTimeout(() => {
                 console.log(`[DEBUG] Attempting to reconnect ${type}...`);
                 if (type === 'visible') {
-                    this.wsVisible = new WebSocket('ws://localhost:8000/ws/client');
+                    this.wsVisible = new WebSocket('ws://172.22.132.3:8000/ws/client');
                     this.setupWebSocketHandlers(this.wsVisible, 'visible');
                 } else {
-                    this.wsInfrared = new WebSocket('ws://localhost:8000/ws/client');
+                    this.wsInfrared = new WebSocket('ws://172.22.132.3:8000/ws/client');
                     this.setupWebSocketHandlers(this.wsInfrared, 'infrared');
                 }
             }, 5000);

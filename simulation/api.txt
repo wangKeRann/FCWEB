@@ -1,7 +1,7 @@
 # 烟途护卫系统 API 文档
 
 ## 基础信息
-- 基础URL: http://localhost:8000
+- 基础URL: http://172.22.132.3:8000
 - 所有请求和响应均使用JSON格式
 - 视频流使用WebSocket协议
 

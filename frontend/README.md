@@ -85,7 +85,7 @@
 
 ## 服务器要求
 
-- WebSocket服务器地址：ws://localhost:8000/ws/client
+- WebSocket服务器地址：ws://172.22.132.3:8000/ws/client
 - 支持JSON和二进制数据传输
 - 支持视频流请求参数：
   - device_type
