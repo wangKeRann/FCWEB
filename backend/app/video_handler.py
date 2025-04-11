@@ -14,6 +14,7 @@ import base64
 
 from app.smoke_removal import SmokeRemoval
 from app.video_processor import VideoProcessor
+from app.pose_processor import PoseProcessor
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -89,6 +90,9 @@ class VideoHandler:
             'saturation': 100
         }
         self.video_processor = VideoProcessor()
+        
+        # 添加姿态处理器
+        self.pose_processor = PoseProcessor(is_server=True)
     
     async def handle_websocket(self, websocket: WebSocket):
         """处理WebSocket连接和视频流"""
@@ -475,6 +479,27 @@ class VideoHandler:
                                     processed_frame = SmokeRemoval.process_frame(latest_frame)
                                 elif process_type == "enhancement":
                                     processed_frame = self.apply_image_enhancement(latest_frame)
+                                elif process_type == "pose_detection":
+                                    try:
+                                        logger.info("开始行为识别处理")
+                                        result = self.pose_processor.process_frame(latest_frame)
+                                        if 'error' not in result:
+                                            logger.info(f"行为识别处理成功，检测到 {len(result['detections'])} 个目标")
+                                            for det in result['detections']:
+                                                logger.info(f"检测到行为: {det['label']}, 置信度: {det['confidence']:.2f}")
+                                            img_data = base64.b64decode(result['draw_frame'])
+                                            nparr = np.frombuffer(img_data, np.uint8)
+                                            processed_frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                                            if processed_frame is None:
+                                                logger.error("行为识别结果解码失败")
+                                                processed_frame = latest_frame
+                                        else:
+                                            logger.error(f"行为识别处理失败: {result['error']}")
+                                            processed_frame = latest_frame
+                                    except Exception as e:
+                                        logger.error(f"行为识别处理异常: {str(e)}")
+                                        logger.error(traceback.format_exc())
+                                        processed_frame = latest_frame
                                 else:
                                     processed_frame = latest_frame
                                 

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class MultiModalProcessor:
     """多模态处理器类，用于处理RGB和红外图像/视频的目标检测"""
     
-    def __init__(self, model_path: str = '../yolov8n.pt',
+    def __init__(self, model_path: str = '../multi.pt',
                  output_dir: str = None):
         """
         初始化多模态处理器

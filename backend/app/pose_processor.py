@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import logging
 from PIL import Image
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class PoseProcessor:
         if is_server:
             try:
                 from ultralytics import YOLO
-                self.model = YOLO('../yolov8n.pt')
+                self.model = YOLO('../zishi.pt')
                 logger.info("YOLOv8模型加载成功")
             except ImportError:
                 logger.warning("服务器环境未安装 ultralytics 包")
@@ -67,10 +68,36 @@ class PoseProcessor:
             frame: 输入图像帧 (BGR格式)
             
         Returns:
-            处理结果字典，包含检测框和关键点信息
+            处理结果字典，包含检测框信息
         """
         try:
+            # 创建原始图像的副本用于绘制
+            draw_frame = frame.copy()
+            
+            # 定义行为类别的颜色映射
+            color_map = {
+                0: (0, 255, 255),  # 黄色 - walk
+                1: (0, 0, 255),    # 红色 - stand
+                2: (255, 0, 0),    # 蓝色 - squat
+                3: (255, 255, 0),  # 青色 - lie
+                4: (255, 0, 255),  # 紫色 - bend
+                5: (0, 255, 0),    # 绿色 - wave
+                6: (128, 0, 128)   # 深紫色 - sit
+            }
+            
+            # 定义行为类别的标签映射
+            label_map = {
+                0: "walk",
+                1: "stand",
+                2: "squat",
+                3: "lie",
+                4: "bend",
+                5: "wave",
+                6: "sit"
+            }
+            
             if self.is_server and self.model is not None:
+                logger.info("YOLO模型已加载")
                 # 服务器环境使用YOLO模型
                 results = self.model(frame)
                 
@@ -78,44 +105,51 @@ class PoseProcessor:
                 detections = []
                 for result in results:
                     boxes = result.boxes
+                    logger.info(f"检测框数量: {len(boxes)}")
                     for box in boxes:
                         # 获取边界框坐标
                         x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                         conf = box.conf[0].cpu().numpy()
                         cls = int(box.cls[0].cpu().numpy())
+                        logger.info(f"检测到目标: 类别={cls}, 置信度={conf}")
                         
-                        # 获取关键点
-                        keypoints = None
-                        if hasattr(result, 'keypoints'):
-                            keypoints = result.keypoints[0].cpu().numpy()
+                        # 获取对应的颜色和标签
+                        color = color_map.get(cls, (0, 255, 0))  # 默认使用绿色
+                        label = label_map.get(cls, f"class_{cls}")
+                        
+                        # 在图像上绘制检测框
+                        cv2.rectangle(draw_frame, 
+                                    (int(x1), int(y1)), 
+                                    (int(x2), int(y2)), 
+                                    color, 2)
+                        
+                        # 添加类别和置信度标签
+                        label_text = f"{label} {conf:.1f}"
+                        # 使用支持中文的字体
+                        font = cv2.FONT_HERSHEY_SIMPLEX
+                        cv2.putText(draw_frame, label_text, 
+                                  (int(x1), int(y1) - 10), 
+                                  font, 0.5, 
+                                  color, 2)
                         
                         detections.append({
                             'bbox': [float(x1), float(y1), float(x2), float(y2)],
                             'confidence': float(conf),
                             'class_id': cls,
-                            'keypoints': keypoints.tolist() if keypoints is not None else None
+                            'label': label
                         })
             else:
-                # 本地环境使用OpenCV进行基本处理
-                # 这里可以添加一些基本的图像处理逻辑
-                # 例如边缘检测、轮廓提取等
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                edges = cv2.Canny(gray, 100, 200)
-                contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                
-                detections = []
-                for contour in contours:
-                    x, y, w, h = cv2.boundingRect(contour)
-                    detections.append({
-                        'bbox': [float(x), float(y), float(x + w), float(y + h)],
-                        'confidence': 1.0,
-                        'class_id': 0,
-                        'keypoints': None
-                    })
+                logger.warning("YOLO模型未加载")
+                return {'error': 'YOLO模型未加载'}
+            
+            # 将绘制后的图像转换为base64
+            _, buffer = cv2.imencode('.jpg', draw_frame)
+            draw_frame_base64 = base64.b64encode(buffer).decode('utf-8')
             
             return {
                 'detections': detections,
-                'frame_shape': frame.shape
+                'frame_shape': frame.shape,
+                'draw_frame': draw_frame_base64
             }
             
         except Exception as e:
@@ -148,7 +182,9 @@ class PoseProcessor:
                 'rgb_detections': rgb_result['detections'],
                 'ir_detections': ir_result['detections'],
                 'rgb_shape': rgb_result['frame_shape'],
-                'ir_shape': ir_result['frame_shape']
+                'ir_shape': ir_result['frame_shape'],
+                'rgb_draw_frame': rgb_result['draw_frame'],  # 添加绘制后的RGB图像
+                'ir_draw_frame': ir_result['draw_frame']     # 添加绘制后的红外图像
             }
             
         except Exception as e:

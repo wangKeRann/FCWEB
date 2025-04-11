@@ -174,6 +174,42 @@ async def client_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"Error in client connection: {str(e)}")
 
+@app.websocket("/ws/pose_detection")
+async def pose_detection_endpoint(websocket: WebSocket):
+    """处理姿势识别请求的WebSocket连接"""
+    logger.info(f"New pose detection connection from {websocket.client.host}")
+    try:
+        await websocket.accept()
+        while True:
+            # 接收前端发送的数据
+            data = await websocket.receive_json()
+            
+            # 处理姿势识别请求
+            if data.get("type") == "pose_detection":
+                try:
+                    # 获取RGB和红外图像数据
+                    rgb_frame = base64_to_cv2(data.get("rgb_frame"))
+                    ir_frame = base64_to_cv2(data.get("ir_frame"))
+                    
+                    # 调用姿势处理器
+                    result = pose_processor.process_frames(rgb_frame, ir_frame)
+                    
+                    # 发送处理结果回前端
+                    await websocket.send_json({
+                        "status": "success",
+                        "data": result
+                    })
+                except Exception as e:
+                    logger.error(f"姿势识别处理失败: {str(e)}")
+                    await websocket.send_json({
+                        "status": "error",
+                        "message": str(e)
+                    })
+    except WebSocketDisconnect:
+        logger.info(f"Pose detection client disconnected: {websocket.client.host}")
+    except Exception as e:
+        logger.error(f"Error in pose detection connection: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting video streaming server...")

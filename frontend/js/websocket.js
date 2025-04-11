@@ -4,6 +4,7 @@ class VideoStreamHandler {
     constructor() {
         this.wsVisible = null;  // WebSocket for visible light video
         this.wsInfrared = null; // WebSocket for infrared video
+        this.wsPoseDetection = null; // WebSocket for pose detection
         this.visibleLightVideo = document.getElementById('visible-light-video');
         this.infraredVideo = document.getElementById('infrared-video');
         this.currentMode = 'video_monitoring'; // Default mode
@@ -70,7 +71,8 @@ class VideoStreamHandler {
         poseDetectionBtn.addEventListener('click', () => {
             this.currentMode = 'pose_detection';
             this.updateActiveButton(poseDetectionBtn);
-            console.log('Mode changed to: pose_detection');
+            console.log('[DEBUG] 切换到行为识别模式');
+            this.updateStatus('connecting', '正在加载行为识别模型...');
             this.updateStream();
         });
 
@@ -183,56 +185,6 @@ class VideoStreamHandler {
         this.connect();
     }
 
-    cleanupResources() {
-        // Close and nullify WebSocket connections
-        if (this.wsVisible) {
-            console.log('[DEBUG] Closing existing visible light WebSocket connection');
-            // Remove all event listeners before closing
-            this.wsVisible.onopen = null;
-            this.wsVisible.onmessage = null;
-            this.wsVisible.onerror = null;
-            this.wsVisible.onclose = null;
-            this.wsVisible.close();
-            this.wsVisible = null;
-        }
-        if (this.wsInfrared) {
-            console.log('[DEBUG] Closing existing infrared WebSocket connection');
-            // Remove all event listeners before closing
-            this.wsInfrared.onopen = null;
-            this.wsInfrared.onmessage = null;
-            this.wsInfrared.onerror = null;
-            this.wsInfrared.onclose = null;
-            this.wsInfrared.close();
-            this.wsInfrared = null;
-        }
-
-        // Revoke all Blob URLs
-        if (this.visibleLightVideo.lastUrl) {
-            URL.revokeObjectURL(this.visibleLightVideo.lastUrl);
-            this.visibleLightVideo.lastUrl = null;
-        }
-        if (this.infraredVideo.lastUrl) {
-            URL.revokeObjectURL(this.infraredVideo.lastUrl);
-            this.infraredVideo.lastUrl = null;
-        }
-
-        // Clear any pending timeouts
-        if (this.reconnectTimeout) {
-            clearTimeout(this.reconnectTimeout);
-            this.reconnectTimeout = null;
-        }
-
-        // Reset video elements
-        this.visibleLightVideo.innerHTML = '';
-        this.infraredVideo.innerHTML = '';
-
-        // Reset status
-        this.updateStatus('disconnected', '设备状态: 切换中...');
-
-        // Add a small delay to ensure all resources are cleaned up
-        return new Promise(resolve => setTimeout(resolve, 100));
-    }
-
     connect() {
         console.log('[DEBUG] Starting WebSocket connection process...');
         this.updateStatus('connecting', '正在连接服务器...');
@@ -319,6 +271,8 @@ class VideoStreamHandler {
         let process_type = "original";
         if (this.currentMode === 'smoke_removal') {
             process_type = "smoke_removal";
+        } else if (this.currentMode === 'pose_detection') {
+            process_type = "pose_detection";
         } else if (this.currentMode === 'enhancement') {
             process_type = "enhancement";
         }
@@ -370,7 +324,7 @@ class VideoStreamHandler {
             this.hideError(videoType === 'visible' ? 'visible-light-container' : 'infrared-container');
             this.hideNoStreamWarning(videoType);
         } catch (error) {
-            console.error(`[ERROR] Error handling ${videoType} video data:`, error);
+            console.error(`[ERROR] 处理${videoType}视频数据时出错:`, error);
             this.showError(videoType === 'visible' ? 'visible-light-container' : 'infrared-container');
         }
     }
@@ -511,6 +465,56 @@ class VideoStreamHandler {
             this.isPlaying = true;
             console.log('Video playing');
         }
+    }
+
+    cleanupResources() {
+        // Close and nullify WebSocket connections
+        if (this.wsVisible) {
+            console.log('[DEBUG] Closing existing visible light WebSocket connection');
+            // Remove all event listeners before closing
+            this.wsVisible.onopen = null;
+            this.wsVisible.onmessage = null;
+            this.wsVisible.onerror = null;
+            this.wsVisible.onclose = null;
+            this.wsVisible.close();
+            this.wsVisible = null;
+        }
+        if (this.wsInfrared) {
+            console.log('[DEBUG] Closing existing infrared WebSocket connection');
+            // Remove all event listeners before closing
+            this.wsInfrared.onopen = null;
+            this.wsInfrared.onmessage = null;
+            this.wsInfrared.onerror = null;
+            this.wsInfrared.onclose = null;
+            this.wsInfrared.close();
+            this.wsInfrared = null;
+        }
+
+        // Revoke all Blob URLs
+        if (this.visibleLightVideo.lastUrl) {
+            URL.revokeObjectURL(this.visibleLightVideo.lastUrl);
+            this.visibleLightVideo.lastUrl = null;
+        }
+        if (this.infraredVideo.lastUrl) {
+            URL.revokeObjectURL(this.infraredVideo.lastUrl);
+            this.infraredVideo.lastUrl = null;
+        }
+
+        // Clear any pending timeouts
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+
+        // Reset video elements
+        this.visibleLightVideo.innerHTML = '';
+        this.infraredVideo.innerHTML = '';
+
+        // Reset status
+        this.updateStatus('disconnected', '设备状态: 切换中...');
+
+        // Add a small delay to ensure all resources are cleaned up
+        return new Promise(resolve => setTimeout(resolve, 100));
     }
 }
 
