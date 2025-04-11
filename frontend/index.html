@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智能数据监控平台</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script src="js/jquery-1.11.0.min.js"></script>
+    <script src="js/websocket.js" type="module"></script>
+</head>
+
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="status-indicator"></div>
+            <span class="header-status-text">设备状态: 正常运行</span>
+        </div>
+        <div class="header-title">
+            <div class="header-title-corner top-left"></div>
+            <div class="header-title-corner top-right"></div>
+            <div class="header-title-corner bottom-left"></div>
+            <div class="header-title-corner bottom-right"></div>
+            烟途护卫
+        </div>
+        <div class="header-right" id="clock"></div>
+    </header>
+    <div class="container">
+        <!-- Left Panel -->
+        <div class="panel" style="margin-top: 20px;">
+            <div class="panel-header">环境监测</div>
+            <div class="panel-content">
+                <div class="status-circle">
+                    <div class="status-text" id="status-text">正常</div>
+                    <div class="breathing-light"></div>
+                </div>
+
+                <div class="data-item">
+                    <div class="data-label">
+                        <i class="fas fa-temperature-high"></i>温度
+                    </div>
+                    <div class="data-value" id="temperature">24.6°C</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">
+                        <i class="fas fa-droplet"></i>湿度
+                    </div>
+                    <div class="data-value" id="humidity">64%</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">
+                        <i class="fas fa-wind"></i>风速
+                    </div>
+                    <div class="data-value" id="wind-speed">3.0m/s</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">
+                        <i class="fas fa-gauge-high"></i>气压
+                    </div>
+                    <div class="data-value" id="pressure">1012.8hPa</div>
+                </div>
+                <div class="data-item warning">
+                    <div class="data-label">
+                        <i class="fas fa-fire"></i>烟感浓度
+                    </div>
+                    <div class="data-value" id="smoke">0.15mg/m³</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">
+                        <i class="fas fa-flask"></i>CO浓度
+                    </div>
+                    <div class="data-value" id="co">2.1ppm</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">
+                        <i class="fas fa-bolt"></i>电气负载
+                    </div>
+                    <div class="data-value" id="load">75%</div>
+                </div>
+            </div>
+            <span class="border_bg_leftTop"></span>
+            <span class="border_bg_rightTop"></span>
+            <span class="border_bg_leftBottom"></span>
+            <span class="border_bg_rightBottom"></span>
+        </div>
+        <div>
+            <div class="video-grid">
+                <div class="video-card">
+                    <div class="panel-header">可见光视频</div>
+                    <div class="video-content" id="visible-light-container">
+                        <div id="visible-light-video" class="video-display">
+                            <!-- Video frames will be inserted here -->
+                        </div>
+                        <div class="video-error">
+                            <span>无视频流</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="video-card">
+                    <div class="panel-header">红外成像</div>
+                    <div class="video-content" id="infrared-container">
+                        <div id="infrared-video" class="video-display">
+                            <!-- Video frames will be inserted here -->
+                        </div>
+                        <div class="video-error">
+                            <span>无视频流</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 智能对话跳转按钮 -->
+            <div class="chat-panel" style="margin-top: 20px;">
+                <div class="panel-header">智能对话</div>
+                <div class="chat-container" style="text-align: center; padding: 40px 0;">
+                    <button id="chat-redirect-btn" class="apple-btn" style="width: 200px; margin: 20px auto;">
+                        <i class="fas fa-comments"></i> 进入智能对话
+                    </button>
+                </div>
+                <span class="border_bg_leftTop"></span>
+                <span class="border_bg_rightTop"></span>
+                <span class="border_bg_leftBottom"></span>
+                <span class="border_bg_rightBottom"></span>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div>
+            <div class="panel" style="margin-bottom: 24px;">
+                <div class="panel-header">设备控制</div>
+                <div class="panel-content">
+                    <button id="robot-btn" class="apple-btn active">
+                        <i class="fas fa-dog"></i>机器狗
+                    </button>
+                    <button id="drone-btn" class="apple-btn">
+                        <i class="fas fa-helicopter"></i>无人机
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">控制模式</div>
+                <div class="panel-content" style="max-height: 300px; overflow-y: auto;">
+                    <button id="video-monitoring-btn" class="apple-btn active">
+                        <i class="fas fa-video"></i>视频监测
+                    </button>
+                    <button id="smoke-removal-btn" class="apple-btn">
+                        <i class="fas fa-smog"></i>去烟增强
+                    </button>
+                    <button id="pose-detection-btn" class="apple-btn">
+                        <i class="fas fa-walking"></i>姿势识别
+                    </button>
+                    <button id="multi-modal-btn" class="apple-btn">
+                        <i class="fas fa-layer-group"></i>多模态增强识别
+                    </button>
+                    <div class="control-mode-dropdown">
+                        <div id="enhancement-btn" class="apple-btn">
+                            <i class="fas fa-sliders-h"></i>图像增强
+                        </div>
+                        <div class="enhancement-controls" style="display: none;">
+                            <div class="control-group">
+                                <label for="brightness">亮度</label>
+                                <div class="slider-container">
+                                    <input type="range" id="brightness" class="enhancement-slider" min="0" max="100"
+                                        value="50">
+                                    <span id="brightness-value">50</span>
+                                </div>
+                            </div>
+                            <div class="control-group">
+                                <label for="contrast">对比度</label>
+                                <div class="slider-container">
+                                    <input type="range" id="contrast" class="enhancement-slider" min="0" max="200"
+                                        value="100">
+                                    <span id="contrast-value">100</span>
+                                </div>
+                            </div>
+                            <div class="control-group">
+                                <label for="saturation">饱和度</label>
+                                <div class="slider-container">
+                                    <input type="range" id="saturation" class="enhancement-slider" min="0" max="200"
+                                        value="100">
+                                    <span id="saturation-value">100</span>
+                                </div>
+                            </div>
+                            <button id="apply-enhancement" class="apple-btn">
+                                <i class="fas fa-check"></i>应用
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="overlay"></div>
+
+    <style>
+        .video-display {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .video-display img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</body>
+
+</html>
