@@ -30,7 +30,7 @@ app.add_middleware(
 
 # 创建处理器实例
 video_handler = VideoHandler()
-multimodal_processor = MultiModalProcessor(output_dir='output')
+multimodal_processor = MultiModalProcessor(is_server=True)
 pose_processor = PoseProcessor()  # 使用默认参数
 
 class VideoAdjustRequest(BaseModel):

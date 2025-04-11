@@ -15,6 +15,7 @@ import base64
 from app.smoke_removal import SmokeRemoval
 from app.video_processor import VideoProcessor
 from app.pose_processor import PoseProcessor
+from app.multimodal_processor import MultiModalProcessor
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -93,6 +94,18 @@ class VideoHandler:
         
         # 添加姿态处理器
         self.pose_processor = PoseProcessor(is_server=True)
+        
+        # 添加多模态处理器
+        self.multimodal_processor = MultiModalProcessor(is_server=True)
+        
+        # 添加多模态处理类型
+        self.PROCESS_TYPES = {
+            "original": "原始视频",
+            "smoke_removal": "去雾处理",
+            "enhancement": "图像增强",
+            "pose_detection": "行为识别",
+            "multimodal_detection": "多模态检测"  # 添加多模态检测类型
+        }
     
     async def handle_websocket(self, websocket: WebSocket):
         """处理WebSocket连接和视频流"""
@@ -377,14 +390,16 @@ class VideoHandler:
         """处理客户端连接"""
         logger.info(f"Handling client connection from {websocket.client.host}")
         
-        # 发送可用的视频类型列表
+        # 发送可用的视频类型和处理类型列表
         try:
             available_types = list(self.VIDEO_TYPES.keys())
+            process_types = list(self.PROCESS_TYPES.keys())
             logger.info(f"Sending available video types to client: {available_types}")
             await websocket.send_json({
                 "status": "info",
-                "message": "Available video types",
-                "video_types": available_types
+                "message": "Available video types and process types",
+                "video_types": available_types,
+                "process_types": process_types
             })
         except Exception as e:
             logger.error(f"Error sending video types: {str(e)}")
@@ -500,6 +515,37 @@ class VideoHandler:
                                         logger.error(f"行为识别处理异常: {str(e)}")
                                         logger.error(traceback.format_exc())
                                         processed_frame = latest_frame
+                                elif process_type == "multimodal_detection":
+                                    try:
+                                        logger.info("开始多模态检测处理")
+                                        # 获取对应的红外帧
+                                        ir_video_type = mapped_video_type.replace("visible", "thermal")
+                                        logger.info(f"尝试获取红外帧，视频类型: {ir_video_type}")
+                                        
+                                        if ir_video_type in self.frame_buffer and self.frame_buffer[ir_video_type]:
+                                            ir_frame = self.frame_buffer[ir_video_type][-1][1]
+                                            logger.info("成功获取红外帧")
+                                            
+                                            # 处理双模态帧
+                                            result = self.multimodal_processor.process_frames(latest_frame, ir_frame)
+                                            if 'error' not in result:
+                                                logger.info(f"多模态处理成功，检测到 {len(result['fused_detections'])} 个目标")
+                                                for det in result['fused_detections']:
+                                                    logger.info(f"检测到目标: 置信度={det['confidence']:.2f}")
+                                                # 解码RGB帧
+                                                rgb_img_data = base64.b64decode(result['rgb_draw_frame'])
+                                                rgb_nparr = np.frombuffer(rgb_img_data, np.uint8)
+                                                processed_frame = cv2.imdecode(rgb_nparr, cv2.IMREAD_COLOR)
+                                            else:
+                                                logger.error(f"多模态处理失败: {result['error']}")
+                                                processed_frame = latest_frame
+                                        else:
+                                            logger.warning(f"未找到红外帧，视频类型: {ir_video_type}")
+                                            processed_frame = latest_frame
+                                    except Exception as e:
+                                        logger.error(f"多模态检测处理异常: {str(e)}")
+                                        logger.error(traceback.format_exc())
+                                        processed_frame = latest_frame
                                 else:
                                     processed_frame = latest_frame
                                 
@@ -553,7 +599,7 @@ class VideoHandler:
         """根据客户端请求处理并广播帧"""
         # 检查是否有客户端请求此视频类型
         for client in self.active_connections.copy():
-            if client == websocket or not self.connection_states.get(client, False):  # 跳过发送者和不活跃的连接
+            if client == websocket or not self.connection_states.get(client, False):
                 continue
                 
             if client in self.client_requests and video_type_dir in self.client_requests[client]:
@@ -596,6 +642,62 @@ class VideoHandler:
                         # 发送处理后的帧
                         await client.send_text(updated_metadata)
                         await client.send_bytes(processed_data)
+                    elif process_type == "pose_detection":
+                        # 应用行为识别
+                        result = self.pose_processor.process_frame(frame)
+                        if 'error' not in result:
+                            img_data = base64.b64decode(result['draw_frame'])
+                            nparr = np.frombuffer(img_data, np.uint8)
+                            processed_frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                            
+                            # 编码处理后的帧
+                            _, buffer = cv2.imencode('.jpg', processed_frame)
+                            processed_data = buffer.tobytes()
+                            
+                            # 更新元数据
+                            metadata = json.loads(metadata_str)
+                            metadata["frame_size"] = len(processed_data)
+                            metadata["detections"] = result['detections']
+                            updated_metadata = json.dumps(metadata)
+                            
+                            # 发送处理后的帧
+                            await client.send_text(updated_metadata)
+                            await client.send_bytes(processed_data)
+                        else:
+                            # 如果处理失败，发送原始帧
+                            await client.send_text(metadata_str)
+                            await client.send_bytes(frame_data)
+                    elif process_type == "multimodal_detection":
+                        try:
+                            logger.info("开始多模态检测处理")
+                            # 获取对应的红外帧
+                            ir_video_type = mapped_video_type.replace("visible", "thermal")
+                            logger.info(f"尝试获取红外帧，视频类型: {ir_video_type}")
+                            
+                            if ir_video_type in self.frame_buffer and self.frame_buffer[ir_video_type]:
+                                ir_frame = self.frame_buffer[ir_video_type][-1][1]
+                                logger.info("成功获取红外帧")
+                                
+                                # 处理双模态帧
+                                result = self.multimodal_processor.process_frames(latest_frame, ir_frame)
+                                if 'error' not in result:
+                                    logger.info(f"多模态处理成功，检测到 {len(result['fused_detections'])} 个目标")
+                                    for det in result['fused_detections']:
+                                        logger.info(f"检测到目标: 置信度={det['confidence']:.2f}")
+                                    # 解码RGB帧
+                                    rgb_img_data = base64.b64decode(result['rgb_draw_frame'])
+                                    rgb_nparr = np.frombuffer(rgb_img_data, np.uint8)
+                                    processed_frame = cv2.imdecode(rgb_nparr, cv2.IMREAD_COLOR)
+                                else:
+                                    logger.error(f"多模态处理失败: {result['error']}")
+                                    processed_frame = latest_frame
+                            else:
+                                logger.warning(f"未找到红外帧，视频类型: {ir_video_type}")
+                                processed_frame = latest_frame
+                        except Exception as e:
+                            logger.error(f"多模态检测处理异常: {str(e)}")
+                            logger.error(traceback.format_exc())
+                            processed_frame = latest_frame
                     else:
                         # 未知的处理类型，发送原始帧
                         await client.send_text(metadata_str)

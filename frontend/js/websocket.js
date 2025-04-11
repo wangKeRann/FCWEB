@@ -142,7 +142,7 @@ class VideoStreamHandler {
     }
 
     updateActiveButton(activeButton) {
-        // 移除所有按钮的active类
+        // 移除所有按钮的active状态
         const buttons = activeButton.parentElement.querySelectorAll('.apple-btn');
         buttons.forEach(btn => {
             btn.classList.remove('active');
@@ -152,19 +152,15 @@ class VideoStreamHandler {
                 if (controls) {
                     controls.style.display = 'none';
                 }
+                // 同时移除视频监测按钮的active状态
+                const videoMonitoringBtn = document.getElementById('video-monitoring-btn');
+                if (videoMonitoringBtn) {
+                    videoMonitoringBtn.classList.remove('active');
+                }
             }
         });
-
-        // 添加active类到当前按钮
+        // 添加当前按钮的active状态
         activeButton.classList.add('active');
-
-        // 如果是图像增强按钮，显示控制面板
-        if (activeButton.id === 'enhancement-btn') {
-            const controls = document.querySelector('.enhancement-controls');
-            if (controls) {
-                controls.style.display = 'block';
-            }
-        }
     }
 
     async updateStream() {
@@ -248,6 +244,16 @@ class VideoStreamHandler {
             console.error(`[ERROR] ${type} WebSocket error occurred:`, error);
             this.updateStatus('error', '设备状态: 连接错误');
             this.showError(type === 'visible' ? 'visible-light-container' : 'infrared-container');
+            setTimeout(() => {
+                console.log(`[DEBUG] Attempting to reconnect ${type}...`);
+                if (type === 'visible') {
+                    this.wsVisible = new WebSocket('ws://localhost:8000/ws/client');
+                    this.setupWebSocketHandlers(this.wsVisible, 'visible');
+                } else {
+                    this.wsInfrared = new WebSocket('ws://localhost:8000/ws/client');
+                    this.setupWebSocketHandlers(this.wsInfrared, 'infrared');
+                }
+            }, 5000);
         };
 
         ws.onclose = (event) => {
@@ -255,7 +261,13 @@ class VideoStreamHandler {
             this.updateStatus('disconnected', '设备状态: 已断开连接');
             setTimeout(() => {
                 console.log(`[DEBUG] Attempting to reconnect ${type}...`);
-                this.connect();
+                if (type === 'visible') {
+                    this.wsVisible = new WebSocket('ws://localhost:8000/ws/client');
+                    this.setupWebSocketHandlers(this.wsVisible, 'visible');
+                } else {
+                    this.wsInfrared = new WebSocket('ws://localhost:8000/ws/client');
+                    this.setupWebSocketHandlers(this.wsInfrared, 'infrared');
+                }
             }, 5000);
         };
     }
@@ -275,6 +287,8 @@ class VideoStreamHandler {
             process_type = "pose_detection";
         } else if (this.currentMode === 'enhancement') {
             process_type = "enhancement";
+        } else if (this.currentMode === 'multi_modal') {
+            process_type = "multimodal_detection";
         }
 
         const request = {
@@ -339,13 +353,57 @@ class VideoStreamHandler {
                 console.error('Server error:', metadata.message);
                 break;
             default:
-                console.log('Unknown metadata type:', metadata);
+                // 处理检测结果
+                if (this.currentMode === 'pose_detection' && metadata.detections) {
+                    this.updatePoseDetections(metadata.detections);
+                } else if (this.currentMode === 'multi_modal' && (metadata.rgb_detections || metadata.ir_detections)) {
+                    this.updateMultimodalDetections(metadata.rgb_detections, metadata.ir_detections);
+                }
+                console.log('Received metadata:', metadata);
         }
     }
 
     updateVideoInfo(info) {
         // Update video information in the UI
         console.log('Video info updated:', info);
+    }
+
+    updatePoseDetections(detections) {
+        // 更新姿势检测结果
+        const detectionInfo = document.getElementById('pose-detection-info');
+        if (detectionInfo) {
+            let infoText = '检测结果: ';
+            if (detections && detections.length > 0) {
+                infoText += detections.map(det => `${det.label} (${(det.confidence * 100).toFixed(1)}%)`).join(', ');
+            } else {
+                infoText += '未检测到目标';
+            }
+            detectionInfo.textContent = infoText;
+        }
+    }
+
+    updateMultimodalDetections(rgbDetections, irDetections) {
+        // 更新多模态检测结果
+        const detectionInfo = document.getElementById('pose-detection-info');
+        if (detectionInfo) {
+            let infoText = '检测结果: ';
+            let allDetections = [];
+
+            // 合并RGB和红外检测结果
+            if (rgbDetections && rgbDetections.length > 0) {
+                allDetections = allDetections.concat(rgbDetections.map(det => `RGB: ${det.label} (${(det.confidence * 100).toFixed(1)}%)`));
+            }
+            if (irDetections && irDetections.length > 0) {
+                allDetections = allDetections.concat(irDetections.map(det => `IR: ${det.label} (${(det.confidence * 100).toFixed(1)}%)`));
+            }
+
+            if (allDetections.length > 0) {
+                infoText += allDetections.join(', ');
+            } else {
+                infoText += '未检测到目标';
+            }
+            detectionInfo.textContent = infoText;
+        }
     }
 
     applyImageEnhancement(brightness, contrast, saturation) {
