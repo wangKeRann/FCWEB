@@ -118,21 +118,51 @@ class VideoStreamHandler {
             console.log(`- Contrast: ${contrast}`);
             console.log(`- Saturation: ${saturation}`);
 
+            // 移除所有控制模式按钮的active类
+            const controlModeButtons = document.querySelectorAll('.panel-content .apple-btn');
+            controlModeButtons.forEach(btn => {
+                if (btn.id !== 'enhancement-btn') {
+                    btn.classList.remove('active');
+                }
+            });
+
+            // 设置当前模式为enhancement
+            this.currentMode = 'enhancement';
+
             // 清理现有的视频流
             this.cleanupResources().then(() => {
                 // 应用新的增强参数
                 this.applyImageEnhancement(brightness, contrast, saturation);
+                // 重新连接并更新视频流
+                this.connect();
             });
         });
     }
 
     updateActiveButton(activeButton) {
-        // Remove active class from all buttons in the same container
+        // 移除所有按钮的active类
         const buttons = activeButton.parentElement.querySelectorAll('.apple-btn');
-        buttons.forEach(btn => btn.classList.remove('active'));
+        buttons.forEach(btn => {
+            btn.classList.remove('active');
+            // 如果是图像增强按钮，同时隐藏控制面板
+            if (btn.id === 'enhancement-btn') {
+                const controls = document.querySelector('.enhancement-controls');
+                if (controls) {
+                    controls.style.display = 'none';
+                }
+            }
+        });
 
-        // Add active class to the clicked button
+        // 添加active类到当前按钮
         activeButton.classList.add('active');
+
+        // 如果是图像增强按钮，显示控制面板
+        if (activeButton.id === 'enhancement-btn') {
+            const controls = document.querySelector('.enhancement-controls');
+            if (controls) {
+                controls.style.display = 'block';
+            }
+        }
     }
 
     async updateStream() {
@@ -148,15 +178,6 @@ class VideoStreamHandler {
         // Show both video containers
         this.visibleLightVideo.style.display = 'block';
         this.infraredVideo.style.display = 'block';
-
-        // 如果是图像增强模式，不要立即连接
-        if (this.currentMode === 'enhancement') {
-            console.log('[DEBUG] Enhancement mode selected, waiting for parameters...');
-            // 显示增强控制面板
-            const enhancementControls = document.querySelector('.enhancement-controls');
-            enhancementControls.style.display = 'block';
-            return;
-        }
 
         // Connect with new parameters
         this.connect();

@@ -42,6 +42,7 @@ body {
     min-height: 100vh;
     overflow-x: hidden;
     overflow-y: auto;
+    box-sizing: border-box;
 }
 
 /* 添加媒体查询，优化小屏幕显示 */
@@ -260,12 +261,12 @@ body {
         transform: scale(1);
         opacity: 1;
     }
-    
+
     50% {
         transform: scale(1.2);
         opacity: 0.8;
     }
-    
+
     100% {
         transform: scale(1);
         opacity: 1;
@@ -370,6 +371,8 @@ body {
     position: relative;
     z-index: 2;
     overflow: visible !important;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
 }
 
 .panel-content::-webkit-scrollbar {
@@ -1161,6 +1164,18 @@ body {
     border-radius: 4px;
 }
 
+.control-mode-dropdown .apple-btn.active {
+    background: linear-gradient(145deg, #007AFF, #0056b3);
+    color: white;
+    transform: scale(1);
+    box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    border: 1px solid #0056b3;
+}
+
+.control-mode-dropdown .apple-btn.active i {
+    color: white;
+}
+
 .control-mode-dropdown .enhancement-controls {
     position: absolute;
     top: 100%;
@@ -1181,6 +1196,33 @@ body {
 
 .control-mode-dropdown.active .fa-chevron-down {
     transform: rotate(180deg);
+}
+
+/* 修改容器样式，防止内容溢出 */
+.container {
+    display: grid;
+    grid-template-columns: 300px 1fr 300px;
+    gap: 20px;
+    height: 100vh;
+    padding: 84px 24px 24px;
+    max-width: 1800px;
+    margin-left: auto;
+    margin-right: auto;
+    background: rgba(16, 20, 34, 0.9);
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+/* 修改面板内容样式，防止溢出 */
+.panel-content {
+    padding: 16px;
+    position: relative;
+    z-index: 2;
+    overflow: visible !important;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
 }
 
 /* 修复小屏幕上下拉列表显示问题 */
